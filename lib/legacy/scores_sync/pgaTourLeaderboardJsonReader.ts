@@ -19,6 +19,15 @@ class PgaTourLeaderboardJsonReader implements Reader {
 
 function grabTourneyId(data: PGATourLeaderboardJSONReaderNextData2): string {
   try {
+    const tourneyId = data.props.pageProps.pageContext.queryArgs.tournamentId;
+    if (tourneyId?.length) {
+      return tourneyId;
+    }
+  } catch {
+    // noop
+  }
+
+  try {
     const tourneyId = data.props.pageProps.pageContext.tournaments[0].id;
     if (tourneyId.length > 0) {
       return tourneyId;
@@ -40,7 +49,7 @@ function grabTourneyPlayers(sourceTourneyId: string, data: PGATourLeaderboardJSO
       return query.state.data.players as PurplePlayer[];
     }
   }
-  throw new Error('Players not found in NEXT_DATA');
+  throw new Error(`Players not found in NEXT_DATA (tourneyId: ${sourceTourneyId})`);
 }
 
 function grabNextData(html: string): PGATourLeaderboardJSONReaderNextData2 {

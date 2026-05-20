@@ -5,6 +5,7 @@ import readerConfig from '../../../lib/legacy/scores_sync/readerConfig';
 import * as updateScore from '../../../lib/legacy/scores_sync/updateScore';
 import { TourneyConfig } from '../../../lib/models';
 import { adminSupabase } from '../../../lib/supabase';
+import { addDays, endOfDay, subDays } from 'date-fns';
 
 if (!process.env.ADMIN_SCRIPT_API_KEY?.length) {
   throw new Error('Missing ADMIN_SCRIPT_API_KEY env var');
@@ -27,6 +28,15 @@ async function updateScoresApi(req: NextApiRequest, res: NextApiResponse) {
   const tourney = await getTourney(tourneyId, supabase);
 
   const tourneyConfig = JSON.parse(tourney.config) as TourneyConfig;
+
+  // Ensure within acceptable date range, including up through the following Monday to be safe in case of playoff/weather
+  const maxDate = endOfDay(addDays(tourneyConfig.startDate, 5));
+  if (maxDate.getTime() < Date.now()) {
+    res.status(200).send({
+      status: `NOOP. Outside tourney date window.`,
+    });
+    return;
+  }
 
   if (tourneyConfig.timezone) {
     const currLocalTourneyHour = localHourIn(tourneyConfig.timezone);
