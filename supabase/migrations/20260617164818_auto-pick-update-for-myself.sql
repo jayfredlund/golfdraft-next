@@ -1,0 +1,2 @@
+create policy "Users can insert their own draft auto pick" on "public"."draft_auto_pick" to public with check (is_user("userId"));
+create policy "Users can delete their own draft auto pick" on "public"."draft_auto_pick" to public using (is_user("userId"));

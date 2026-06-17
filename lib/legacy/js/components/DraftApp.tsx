@@ -1,9 +1,9 @@
 import { formatDistanceStrict } from 'date-fns';
 import Link from 'next/link';
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useInterval } from 'usehooks-ts';
 import Loading from '../../../Loading';
-import { isCompletedDraftPick, useCurrentPick, useDraftPicks } from '../../../data/draft';
+import { isCompletedDraftPick, useAutoPickUsers, useAutoPickUsersMutation, useCurrentPick, useDraftPicks } from '../../../data/draft';
 import { useDraftSettings, useHasDraftStarted } from '../../../data/draftSettings';
 import { useCurrentTourney } from '../../../data/tourney';
 import { useCurrentUser } from '../../../data/users';
@@ -61,63 +61,66 @@ const DraftApp: React.FC = () => {
   }
 
   return (
-    <section className={'draft ' + (draftSettings.isDraftPaused ? 'draft-paused' : 'draft-active')}>
-      {draftSettings.isDraftPaused ? (
-        <section className="app-paused-section">
-          <AppPausedStatus />
-        </section>
-      ) : (
-        <React.Fragment>
-          <section className="chooser-section">
-            {!isMyDraftPick ? (
-              <GolfDraftPanel heading="Draft Status">
-                <DraftStatus
+    <>
+      <AutoPickOverlay />
+      <section className={'draft ' + (draftSettings.isDraftPaused ? 'draft-paused' : 'draft-active')}>
+        {draftSettings.isDraftPaused ? (
+          <section className="app-paused-section">
+            <AppPausedStatus />
+          </section>
+        ) : (
+          <>
+            <section className="chooser-section">
+              {!isMyDraftPick ? (
+                <GolfDraftPanel heading="Draft Status">
+                  <DraftStatus
+                    currentPick={currentPick}
+                    onDraftForUser={() => {
+                      setPickingForUsers((curr) => new Set(curr).add(currentPick.userId));
+                    }}
+                  />
+                </GolfDraftPanel>
+              ) : (
+                <DraftChooser
                   currentPick={currentPick}
-                  onDraftForUser={() => {
-                    setPickingForUsers((curr) => new Set(curr).add(currentPick.userId));
+                  onStopDraftingForUser={() => {
+                    setPickingForUsers((curr) => new Set([...curr].filter((uid) => uid !== currentPick.userId)));
                   }}
                 />
+              )}
+            </section>
+
+            <section className="draft-clock-section">
+              <GolfDraftPanel heading={'Draft Clock'}>
+                <DraftClock isMyPick={!!isMyDraftPick} disableClock={!draftSettings.allowClock} />
               </GolfDraftPanel>
-            ) : (
-              <DraftChooser
-                currentPick={currentPick}
-                onStopDraftingForUser={() => {
-                  setPickingForUsers((curr) => new Set([...curr].filter((uid) => uid !== currentPick.userId)));
-                }}
-              />
-            )}
-          </section>
+            </section>
+          </>
+        )}
 
-          <section className="draft-clock-section">
-            <GolfDraftPanel heading={'Draft Clock'}>
-              <DraftClock isMyPick={!!isMyDraftPick} disableClock={!draftSettings.allowClock} />
-            </GolfDraftPanel>
-          </section>
-        </React.Fragment>
-      )}
+        <section className="draft-order-section">
+          <GolfDraftPanel heading="Draft Order">
+            <DraftPickOrderView pickingForUsers={pickingForUsers} onUserSelected={(pid) => setSelectedUserId(pid)} />
+          </GolfDraftPanel>
+        </section>
 
-      <section className="draft-order-section">
-        <GolfDraftPanel heading="Draft Order">
-          <DraftPickOrderView pickingForUsers={pickingForUsers} onUserSelected={(pid) => setSelectedUserId(pid)} />
-        </GolfDraftPanel>
+        <section className="pick-list-section">
+          <GolfDraftPanel heading="Pick List">
+            <PickListEditor height="29em" />
+          </GolfDraftPanel>
+        </section>
+
+        <section className="chatroom-section">
+          <GolfDraftPanel heading="Chat Room">
+            <ChatRoom />
+          </GolfDraftPanel>
+        </section>
+
+        <section className="draft-history-section">
+          <DraftHistory onSelectionChange={(uid) => setSelectedUserId(uid)} selectedUserId={selectedUserId} />
+        </section>
       </section>
-
-      <section className="pick-list-section">
-        <GolfDraftPanel heading="Pick List">
-          <PickListEditor height="29em" />
-        </GolfDraftPanel>
-      </section>
-
-      <section className="chatroom-section">
-        <GolfDraftPanel heading="Chat Room">
-          <ChatRoom />
-        </GolfDraftPanel>
-      </section>
-
-      <section className="draft-history-section">
-        <DraftHistory onSelectionChange={(uid) => setSelectedUserId(uid)} selectedUserId={selectedUserId} />
-      </section>
-    </section>
+    </>
   );
 };
 
@@ -222,5 +225,41 @@ const PreDraft: React.FC = () => {
     </section>
   );
 };
+
+const useIsAutoPicking = (): boolean => {
+  const { data: autoPickUsers } = useAutoPickUsers();
+  const { data: currentUser } = useCurrentUser();
+  return !!currentUser && !!autoPickUsers?.has(currentUser.id);
+};
+
+function AutoPickOverlay() {
+  const isAutoPicking = useIsAutoPicking();
+  const mutation = useAutoPickUsersMutation();
+  const { data: currentUser } = useCurrentUser();
+
+  const handleClick = useCallback(() => {
+    if (!currentUser) {
+      return;
+    }
+    mutation.mutate({ userId: currentUser.id, autoPick: false });
+  }, [currentUser, mutation]);
+
+  if (!isAutoPicking) {
+    return null;
+  }
+
+  return (
+    <div className="auto-pick-overlay">
+      <div className="jumbotron">
+        <h1>You are set to auto pick</h1>
+        <h2>
+          <button type="button" className="btn btn-primary" onClick={handleClick} disabled={mutation.isLoading}>
+            Disable auto picking
+          </button>
+        </h2>
+      </div>
+    </div>
+  )
+}
 
 export default DraftApp;

@@ -31,7 +31,7 @@ export function useGolfers({ includeInvalid }: { includeInvalid?: boolean } = {}
     }
     const map = keyBy([...golfersResults.data, { ...PENDING_GOLFER, tourneyId }], (g) => g.id);
     const lookup: GolferLookup = {
-      golfers: includeInvalid ? golfersResults.data : golfersResults.data.filter(g => !g.invalid),
+      golfers: includeInvalid ? golfersResults.data : golfersResults.data.filter((g) => !g.invalid),
       getGolfer: (gid: number) => {
         const g = map[gid];
         if (!g) {
@@ -65,7 +65,6 @@ export async function prefetchGolfers(
 }
 
 export async function getGolfers(tourneyId: number, supabase: SupabaseClient): Promise<Golfer[]> {
-  debugger;
   const result = await supabase.from(GOLFERS_TABLE).select('*').eq('tourneyId', tourneyId);
   if (result.error) {
     console.dir(result.error);
