@@ -53,7 +53,7 @@ const ChatRoom = ({ disabled = false }: { disabled?: boolean }): React.ReactElem
     );
   }
 
-  const activeUserShortNames = asShortNames([...activeUsers].map((uid) => allUsers[uid]).filter((u): u is GDUser => !!u));
+  const activeUserShortNames = asShortNames([...activeUsers].map((uid) => allUsers[uid]), [...activeUsers]);
 
   return (
     <div className="chat-room-container">
@@ -90,9 +90,13 @@ const ChatRoom = ({ disabled = false }: { disabled?: boolean }): React.ReactElem
 };
 
 /** Returns a list of names using firstName, adding last initial if duplicates are found, and then adding the full last name if duplicates still exist */
-const asShortNames = (users: GDUser[]): string[] => {
-  const firstLast = users.map((u) => {
-    return u.name.split(' ');
+const asShortNames = (users: Array<GDUser | undefined>, userIds: number[]): string[] => {
+  const resolvedUsers = users
+    .map((user, index) => ({ user, userId: userIds[index] }))
+    .filter((entry): entry is { user: GDUser; userId: number } => !!entry.user);
+
+  const firstLast = resolvedUsers.map(({ user }) => {
+    return user.name.split(' ');
   });
 
   const byFirstLastInitial = countBy(firstLast, ([first, last]) => `${first} ${last[0]}`);
@@ -106,7 +110,12 @@ const asShortNames = (users: GDUser[]): string[] => {
     return `${first} ${last}`;
   });
 
-  return shortNames.sort();
+  const missingUsers = users
+    .map((user, index) => ({ user, userId: userIds[index] }))
+    .filter((entry): entry is { user: undefined; userId: number } => !entry.user)
+    .map(({ userId }) => `User ${userId}`);
+
+  return [...shortNames, ...missingUsers].sort();
 };
 
 const ChatRoomBody = ({ messages }: { messages: ReturnType<typeof useChatMessages>['data'] }): React.ReactElement => {

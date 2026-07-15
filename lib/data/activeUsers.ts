@@ -81,8 +81,12 @@ export const useActiveUsersData = () => {
       })
       .subscribe((status) => {
         if (status === 'SUBSCRIBED') {
-          // Show the current user immediately even before sync propagates.
-          setActiveUsers(new Set([userId]));
+          // Ensure current user is present without dropping peers already learned via join/sync.
+          setActiveUsers((curr) => {
+            const next = new Set(curr);
+            next.add(userId);
+            return next;
+          });
 
           const myPresence: ActiveUsersData = { userId, active: true };
           channel.track(myPresence).catch((err) => {
