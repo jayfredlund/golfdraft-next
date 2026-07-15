@@ -6,13 +6,22 @@ import { useActiveUsers } from '../../../ctx/ActiveUsersCtx';
 import { useChatMessageMutation, useChatMessages } from '../../../data/chat';
 import { useAllUsers } from '../../../data/users';
 import { GDUser } from '../../../models';
+import Assets from '../constants/Assets';
 
 const BOT_NAME = 'DraftBot';
+let newChatMessageSound: HTMLAudioElement | undefined = undefined;
+try {
+  newChatMessageSound = new Audio(Assets.NEW_CHAT_MESSAGE_SOUND);
+} catch {
+  // noop
+}
 
 const ChatRoom = ({ disabled = false }: { disabled?: boolean }): React.ReactElement | null => {
   const { data: messages } = useChatMessages();
   const { activeUsers } = useActiveUsers();
   const { data: allUsers } = useAllUsers();
+
+  useNewChatMessageSoundFx(messages);
 
   const [scrollPaneRef, setScrollPaneRef] = useState<HTMLDivElement | null>(null);
 
@@ -215,6 +224,45 @@ const useScrollAfterNewMessage = ({
       scrollPaneRef.scrollTo(0, scrollPaneRef.scrollHeight);
     }
   }, [enabled, lastMessageCount, messageCount, scrollPaneRef]);
+};
+
+const useNewChatMessageSoundFx = (messages?: ReturnType<typeof useChatMessages>['data']) => {
+  const initializedRef = useRef(false);
+  const seenMessageIdsRef = useRef(new Set<number>());
+
+  useEffect(() => {
+    if (!messages) {
+      return;
+    }
+
+    const seen = seenMessageIdsRef.current;
+
+    if (!initializedRef.current) {
+      messages.forEach((m) => seen.add(m.id));
+      initializedRef.current = true;
+      return;
+    }
+
+    let hasNewUserMessage = false;
+    for (const m of messages) {
+      if (seen.has(m.id)) {
+        continue;
+      }
+
+      seen.add(m.id);
+      if (m.userId) {
+        hasNewUserMessage = true;
+      }
+    }
+
+    if (hasNewUserMessage) {
+      try {
+        void newChatMessageSound?.play();
+      } catch {
+        // noop
+      }
+    }
+  }, [messages]);
 };
 
 export default ChatRoom;
