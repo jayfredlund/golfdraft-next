@@ -10,14 +10,14 @@ import { GDUser } from '../../../models';
 const BOT_NAME = 'DraftBot';
 
 const ChatRoom = ({ disabled = false }: { disabled?: boolean }): React.ReactElement | null => {
-  const messages = useChatMessages();
+  const { data: messages } = useChatMessages();
   const { activeUsers } = useActiveUsers();
   const { data: allUsers } = useAllUsers();
 
   const [scrollPaneRef, setScrollPaneRef] = useState<HTMLDivElement | null>(null);
 
   const ready = useInitialScrollToBottom(scrollPaneRef);
-  useScrollAfterNewMessage({ scrollPaneRef, enabled: ready });
+  useScrollAfterNewMessage({ scrollPaneRef, enabled: ready, messages });
 
   if (!allUsers) {
     return <Loading />;
@@ -33,7 +33,7 @@ const ChatRoom = ({ disabled = false }: { disabled?: boolean }): React.ReactElem
             ref={setScrollPaneRef}
           >
             <div className="panel-body">
-              <ChatRoomBody />
+              <ChatRoomBody messages={messages} />
             </div>
           </div>
         </div>
@@ -41,7 +41,7 @@ const ChatRoom = ({ disabled = false }: { disabled?: boolean }): React.ReactElem
     );
   }
 
-  const activeUserShortNames = asShortNames([...activeUsers].map((uid) => allUsers[uid]));
+  const activeUserShortNames = asShortNames([...activeUsers].map((uid) => allUsers[uid]).filter((u): u is GDUser => !!u));
 
   return (
     <div className="chat-room-container">
@@ -52,7 +52,7 @@ const ChatRoom = ({ disabled = false }: { disabled?: boolean }): React.ReactElem
           ref={setScrollPaneRef}
         >
           <div className="panel-body">
-            <ChatRoomBody />
+            <ChatRoomBody messages={messages} />
           </div>
         </div>
         {!messages ? null : <ChatRoomInput />}
@@ -93,8 +93,7 @@ const asShortNames = (users: GDUser[]): string[] => {
   return shortNames.sort();
 };
 
-const ChatRoomBody = (): React.ReactElement => {
-  const { data: messages } = useChatMessages();
+const ChatRoomBody = ({ messages }: { messages: ReturnType<typeof useChatMessages>['data'] }): React.ReactElement => {
   const { data: users } = useAllUsers();
 
   if (!messages || !users) {
@@ -109,10 +108,10 @@ const ChatRoomBody = (): React.ReactElement => {
     <div>
       <dl className="chat-list dl-horizontal">
         {messages.map((message, i) => {
-          const displayName = !message.userId ? BOT_NAME : users[message.userId].name;
+          const displayName = !message.userId ? BOT_NAME : users[message.userId]?.name || `User ${message.userId}`;
           const className = !message.userId ? 'bot-message' : '';
           return (
-            <React.Fragment key={i}>
+            <React.Fragment key={message.id}>
               <dt className={className}>
                 {displayName}
                 <span className="message-date"> ({moment(message.createdAt).format('LT')})</span>:
@@ -189,13 +188,13 @@ const useInitialScrollToBottom = (scrollPaneRef: HTMLDivElement | null) => {
 const useScrollAfterNewMessage = ({
   scrollPaneRef,
   enabled,
+  messages,
 }: {
   scrollPaneRef: HTMLDivElement | null;
   enabled: boolean;
+  messages?: ReturnType<typeof useChatMessages>['data'];
 }) => {
-  const messages = useChatMessages();
-
-  const messageCount = messages.data?.length ?? 0;
+  const messageCount = messages?.length ?? 0;
 
   const lastMessageCountRef = useRef(messageCount);
   useEffect(() => {

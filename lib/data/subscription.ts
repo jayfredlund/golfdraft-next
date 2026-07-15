@@ -1,57 +1,52 @@
 import { RealtimeChannel, RealtimePostgresChangesPayload, SupabaseClient } from '@supabase/supabase-js';
-import { memoize } from 'lodash';
 import { useEffect, useState } from 'react';
 import { createClient } from '../supabase/component';
 
 type SubscriptionCallback<T extends { [key: string]: unknown }> = (ev: RealtimePostgresChangesPayload<T>) => void;
 
-const getOrCreateSub = memoize(
-  <T extends { [key: string]: unknown }>(table: string, filter: string, supabase: SupabaseClient) => {
-    const cbs: SubscriptionCallback<T>[] = [];
+type SharedSubscription = {
+  channel: RealtimeChannel;
+  callbacks: Set<SubscriptionCallback<any>>;
+};
 
-    const createSub = (): RealtimeChannel => {
-      return supabase
-        .channel(`postgres_changes:${table}:${filter}`)
-        .on<T>(
-          'postgres_changes',
-          {
-            event: '*',
-            schema: 'public',
-            table,
-            filter: filter.length ? filter : undefined,
-          },
-          (payload) => {
-            cbs.forEach((cb) => {
-              cb(payload);
-            });
-          },
-        )
-        .subscribe();
-    };
+const sharedSubscriptions = new Map<string, SharedSubscription>();
 
-    let sub: RealtimeChannel | undefined = undefined;
-    const ensureSub = () => {
-      sub = sub ?? createSub();
-      return sub;
-    };
+function buildSubscriptionKey(table: string, filter: string): string {
+  return `${table}:${filter}`;
+}
 
-    return {
-      addCb: (cb: SubscriptionCallback<T>) => {
-        ensureSub();
-        cbs.push(cb);
+function getOrCreateSharedSubscription<T extends { [key: string]: unknown }>(
+  table: string,
+  filter: string,
+  supabase: SupabaseClient,
+): SharedSubscription {
+  const key = buildSubscriptionKey(table, filter);
+  const existing = sharedSubscriptions.get(key);
+  if (existing) {
+    return existing;
+  }
+
+  const callbacks = new Set<SubscriptionCallback<T>>();
+  const channel = supabase
+    .channel(`postgres_changes:${table}:${filter}`)
+    .on<T>(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: 'public',
+        table,
+        filter: filter.length ? filter : undefined,
       },
-      removeCb: (cb: SubscriptionCallback<T>) => {
-        const index = cbs.indexOf(cb);
-        if (index > 0) {
-          cbs.splice(index, 1);
-        }
-        if (cbs.length === 0) {
-          sub?.unsubscribe();
-        }
+      (payload) => {
+        callbacks.forEach((cb) => cb(payload));
       },
-    };
-  },
-);
+    )
+    .subscribe();
+
+  const sharedSub: SharedSubscription = { channel, callbacks: callbacks as Set<SubscriptionCallback<any>> };
+  sharedSubscriptions.set(key, sharedSub);
+  return sharedSub;
+}
 
 const openSharedSubscription = <T extends { [key: string]: unknown }>(
   table: string,
@@ -59,11 +54,22 @@ const openSharedSubscription = <T extends { [key: string]: unknown }>(
   cb: SubscriptionCallback<T>,
   supabase: SupabaseClient,
 ): { unsubscribe: () => void } => {
-  const { addCb, removeCb } = getOrCreateSub<T>(table, filter, supabase);
-  addCb(cb);
+  const key = buildSubscriptionKey(table, filter);
+  const sharedSub = getOrCreateSharedSubscription<T>(table, filter, supabase);
+  sharedSub.callbacks.add(cb);
+
   return {
     unsubscribe: () => {
-      removeCb(cb);
+      const sub = sharedSubscriptions.get(key);
+      if (!sub) {
+        return;
+      }
+
+      sub.callbacks.delete(cb);
+      if (sub.callbacks.size === 0) {
+        sub.channel.unsubscribe();
+        sharedSubscriptions.delete(key);
+      }
     },
   };
 };

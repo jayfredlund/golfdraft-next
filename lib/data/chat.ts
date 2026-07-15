@@ -20,6 +20,11 @@ export function useChatMessages(tourneyIdOverride?: number) {
 
   const result = useQuery<ChatMessage[]>(queryClientKey, async () => {
     return getChatMessages(tourneyId, supabase);
+  }, {
+    staleTime: 0,
+    refetchInterval: 10_000,
+    refetchOnWindowFocus: 'always',
+    refetchOnReconnect: 'always',
   });
 
   useSharedSubscription<ChatMessage>(
