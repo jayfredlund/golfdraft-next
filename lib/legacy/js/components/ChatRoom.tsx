@@ -9,9 +9,11 @@ import { GDUser } from '../../../models';
 import Assets from '../constants/Assets';
 
 const BOT_NAME = 'DraftBot';
+const CHAT_NOTIFICATION_SOUNDS_ENABLED_KEY = 'gd:chatNotificationSoundsEnabled';
 let newChatMessageSound: HTMLAudioElement | undefined = undefined;
 try {
   newChatMessageSound = new Audio(Assets.NEW_CHAT_MESSAGE_SOUND);
+  newChatMessageSound.volume = 0.5;
 } catch {
   // noop
 }
@@ -20,8 +22,9 @@ const ChatRoom = ({ disabled = false }: { disabled?: boolean }): React.ReactElem
   const { data: messages } = useChatMessages();
   const { activeUsers } = useActiveUsers();
   const { data: allUsers } = useAllUsers();
+  const [chatNotificationSoundsEnabled, setChatNotificationSoundsEnabled] = useChatNotificationSoundsEnabled();
 
-  useNewChatMessageSoundFx(messages);
+  useNewChatMessageSoundFx(messages, chatNotificationSoundsEnabled);
 
   const [scrollPaneRef, setScrollPaneRef] = useState<HTMLDivElement | null>(null);
 
@@ -65,6 +68,10 @@ const ChatRoom = ({ disabled = false }: { disabled?: boolean }): React.ReactElem
           </div>
         </div>
         {!messages ? null : <ChatRoomInput />}
+        <ChatNotificationSoundToggle
+          enabled={chatNotificationSoundsEnabled}
+          onToggle={setChatNotificationSoundsEnabled}
+        />
       </div>
       <div className="col-md-3">
         <div className="panel panel-default">
@@ -173,6 +180,23 @@ const ChatRoomInput = (): React.ReactElement => {
   );
 };
 
+const ChatNotificationSoundToggle = ({
+  enabled,
+  onToggle,
+}: {
+  enabled: boolean;
+  onToggle: (enabled: boolean) => void;
+}): React.ReactElement => {
+  return (
+    <div className="checkbox" style={{ marginTop: '10px' }}>
+      <label>
+        <input type="checkbox" checked={!enabled} onChange={(ev) => onToggle(!ev.target.checked)} /> Turn off chat
+        notification sounds
+      </label>
+    </div>
+  );
+};
+
 const useInitialScrollToBottom = (scrollPaneRef: HTMLDivElement | null) => {
   const [ready, setReady] = useState(false);
 
@@ -226,7 +250,10 @@ const useScrollAfterNewMessage = ({
   }, [enabled, lastMessageCount, messageCount, scrollPaneRef]);
 };
 
-const useNewChatMessageSoundFx = (messages?: ReturnType<typeof useChatMessages>['data']) => {
+const useNewChatMessageSoundFx = (
+  messages: ReturnType<typeof useChatMessages>['data'],
+  enabled: boolean,
+) => {
   const initializedRef = useRef(false);
   const seenMessageIdsRef = useRef(new Set<number>());
 
@@ -255,14 +282,40 @@ const useNewChatMessageSoundFx = (messages?: ReturnType<typeof useChatMessages>[
       }
     }
 
-    if (hasNewUserMessage) {
+    if (enabled && hasNewUserMessage) {
       try {
         void newChatMessageSound?.play();
       } catch {
         // noop
       }
     }
-  }, [messages]);
+  }, [enabled, messages]);
+};
+
+const useChatNotificationSoundsEnabled = (): [boolean, (enabled: boolean) => void] => {
+  const [enabled, setEnabled] = useState(true);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    const storedValue = window.localStorage.getItem(CHAT_NOTIFICATION_SOUNDS_ENABLED_KEY);
+    if (storedValue === null) {
+      return;
+    }
+
+    setEnabled(storedValue === 'true');
+  }, []);
+
+  const updateEnabled = (nextEnabled: boolean) => {
+    setEnabled(nextEnabled);
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(CHAT_NOTIFICATION_SOUNDS_ENABLED_KEY, String(nextEnabled));
+    }
+  };
+
+  return [enabled, updateEnabled];
 };
 
 export default ChatRoom;
