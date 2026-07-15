@@ -190,7 +190,7 @@ const ChatNotificationSoundToggle = ({
   return (
     <div className="checkbox" style={{ paddingLeft: '20px' }}>
       <label>
-        <input type="checkbox" checked={!enabled} onChange={(ev) => onToggle(!ev.target.checked)} /> Turn off chat
+        <input type="checkbox" checked={enabled} onChange={(ev) => onToggle(ev.target.checked)} /> Enable chat
         notification sounds
       </label>
     </div>
