@@ -26,40 +26,41 @@ export const useActiveUsersData = () => {
   const [supabase] = useState(() => createClient());
   const tourneyId = useTourneyId();
   const { data: user } = useCurrentUser();
+  const userId = user?.id;
 
   const [activeUsers, setActiveUsers] = useState(() => new Set<number>());
 
   useEffect(() => {
-    if (!user) {
+    if (!userId) {
       setActiveUsers(new Set());
       return;
     }
 
     const channel = supabase.channel(`active-users:${tourneyId}`, {
       config: {
-        presence: { key: user.id.toString() },
+        presence: { key: userId.toString() },
       },
     });
 
     channel
       .on('presence', { event: 'sync' }, () => {
         const presenceByUserId = channel.presenceState() as unknown as ActiveUserPresenceState;
-        setActiveUsers(readActiveUserIds(presenceByUserId, user.id));
+        setActiveUsers(readActiveUserIds(presenceByUserId, userId));
       })
       .on('presence', { event: 'join' }, () => {
         const presenceByUserId = channel.presenceState() as unknown as ActiveUserPresenceState;
-        setActiveUsers(readActiveUserIds(presenceByUserId, user.id));
+        setActiveUsers(readActiveUserIds(presenceByUserId, userId));
       })
       .on('presence', { event: 'leave' }, () => {
         const presenceByUserId = channel.presenceState() as unknown as ActiveUserPresenceState;
-        setActiveUsers(readActiveUserIds(presenceByUserId, user.id));
+        setActiveUsers(readActiveUserIds(presenceByUserId, userId));
       })
       .subscribe((status) => {
         if (status === 'SUBSCRIBED') {
           // Show the current user immediately even before sync propagates.
-          setActiveUsers(new Set([user.id]));
+          setActiveUsers(new Set([userId]));
 
-          const myPresence: ActiveUsersData = { userId: user.id, active: true };
+          const myPresence: ActiveUsersData = { userId, active: true };
           channel.track(myPresence).catch((err) => {
             console.error('Failed to track active user presence', err);
           });
@@ -73,7 +74,7 @@ export const useActiveUsersData = () => {
       channel.unsubscribe();
       setActiveUsers(new Set());
     };
-  }, [user, supabase, tourneyId]);
+  }, [userId, supabase, tourneyId]);
 
   return activeUsers;
 };
