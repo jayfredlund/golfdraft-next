@@ -6,6 +6,7 @@ import { useCurrentUser } from './users';
 type ActiveUsersData = {
   active: boolean;
   userId: number;
+  phx_ref?: string;
 };
 
 type ActiveUserPresenceState = {
@@ -13,10 +14,26 @@ type ActiveUserPresenceState = {
 };
 
 function readActiveUserIds(presenceByUserId: ActiveUserPresenceState, selfUserId: number): Set<number> {
-  const fromPresence = Object.keys(presenceByUserId)
-    .map((s) => Number(s))
-    .filter((n) => Number.isFinite(n));
-  return new Set<number>([...fromPresence, selfUserId]);
+  const activeUserIds = new Set<number>();
+
+  Object.entries(presenceByUserId).forEach(([key, metas]) => {
+    const metasWithRef = metas.filter(
+      (meta) => Number.isFinite(meta.userId) && typeof meta.phx_ref === 'string' && meta.phx_ref.length > 0,
+    );
+
+    if (metasWithRef.length > 0) {
+      metasWithRef.forEach((meta) => activeUserIds.add(meta.userId));
+      return;
+    }
+
+    const keyAsNumber = Number(key);
+    if (Number.isFinite(keyAsNumber)) {
+      activeUserIds.add(keyAsNumber);
+    }
+  });
+
+  activeUserIds.add(selfUserId);
+  return activeUserIds;
 }
 
 /**
