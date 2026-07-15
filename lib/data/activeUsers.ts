@@ -9,8 +9,15 @@ type ActiveUsersData = {
 };
 
 type ActiveUserPresenceState = {
-  [key: number]: ActiveUsersData[];
+  [key: string]: ActiveUsersData[];
 };
+
+function readActiveUserIds(presenceByUserId: ActiveUserPresenceState, selfUserId: number): Set<number> {
+  const fromPresence = Object.keys(presenceByUserId)
+    .map((s) => Number(s))
+    .filter((n) => Number.isFinite(n));
+  return new Set<number>([...fromPresence, selfUserId]);
+}
 
 /**
  * Opens up presence channel for active users. Note: do not use directly. Use context instead.
@@ -37,11 +44,21 @@ export const useActiveUsersData = () => {
     channel
       .on('presence', { event: 'sync' }, () => {
         const presenceByUserId = channel.presenceState() as unknown as ActiveUserPresenceState;
-        const newActiveUsers = new Set<number>([...Object.keys(presenceByUserId).map((s) => +s), user.id]);
-        setActiveUsers(newActiveUsers);
+        setActiveUsers(readActiveUserIds(presenceByUserId, user.id));
+      })
+      .on('presence', { event: 'join' }, () => {
+        const presenceByUserId = channel.presenceState() as unknown as ActiveUserPresenceState;
+        setActiveUsers(readActiveUserIds(presenceByUserId, user.id));
+      })
+      .on('presence', { event: 'leave' }, () => {
+        const presenceByUserId = channel.presenceState() as unknown as ActiveUserPresenceState;
+        setActiveUsers(readActiveUserIds(presenceByUserId, user.id));
       })
       .subscribe((status) => {
         if (status === 'SUBSCRIBED') {
+          // Show the current user immediately even before sync propagates.
+          setActiveUsers(new Set([user.id]));
+
           const myPresence: ActiveUsersData = { userId: user.id, active: true };
           channel.track(myPresence).catch((err) => {
             console.error('Failed to track active user presence', err);
@@ -54,6 +71,7 @@ export const useActiveUsersData = () => {
         // noop
       });
       channel.unsubscribe();
+      setActiveUsers(new Set());
     };
   }, [user, supabase, tourneyId]);
 
