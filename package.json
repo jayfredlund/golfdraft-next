@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "next lint",
     "prettier-format": "prettier --config .prettierrc 'lib/**/*.ts*' --write && prettier --config .prettierrc 'pages/**/*.ts*' --write",
-    "test": "NEXT_PUBLIC_SUPABASE_URL=test NEXT_PUBLIC_SUPABASE_ANON_KEY=test jest --roots lib",
+    "test": "NEXT_PUBLIC_SUPABASE_URL=test NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=test jest --roots lib",
     "testDb": "npx supabase db test",
     "knip": "knip"
   },
