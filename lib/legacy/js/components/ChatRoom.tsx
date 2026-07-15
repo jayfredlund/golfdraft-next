@@ -13,7 +13,7 @@ const CHAT_NOTIFICATION_SOUNDS_ENABLED_KEY = 'gd:chatNotificationSoundsEnabled';
 let newChatMessageSound: HTMLAudioElement | undefined = undefined;
 try {
   newChatMessageSound = new Audio(Assets.NEW_CHAT_MESSAGE_SOUND);
-  newChatMessageSound.volume = 0.5;
+  newChatMessageSound.volume = 0.15;
 } catch {
   // noop
 }
