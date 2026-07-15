@@ -12,11 +12,21 @@ type ActiveUserPresenceState = {
   [key: string]: ActiveUsersData[];
 };
 
+type ActiveUserPresenceDiff = {
+  [key: string]: { metas: ActiveUsersData[] };
+};
+
 function readActiveUserIds(presenceByUserId: ActiveUserPresenceState, selfUserId: number): Set<number> {
   const fromPresence = Object.keys(presenceByUserId)
     .map((s) => Number(s))
     .filter((n) => Number.isFinite(n));
   return new Set<number>([...fromPresence, selfUserId]);
+}
+
+function readDiffUserIds(diff: ActiveUserPresenceDiff): number[] {
+  return Object.keys(diff)
+    .map((s) => Number(s))
+    .filter((n) => Number.isFinite(n));
 }
 
 /**
@@ -47,13 +57,27 @@ export const useActiveUsersData = () => {
         const presenceByUserId = channel.presenceState() as unknown as ActiveUserPresenceState;
         setActiveUsers(readActiveUserIds(presenceByUserId, userId));
       })
-      .on('presence', { event: 'join' }, () => {
-        const presenceByUserId = channel.presenceState() as unknown as ActiveUserPresenceState;
-        setActiveUsers(readActiveUserIds(presenceByUserId, userId));
+      .on('presence', { event: 'join' }, ({ key, newPresences }: { key: string; newPresences: ActiveUsersData[] }) => {
+        const joinedIds = [Number(key), ...newPresences.map((presence) => presence.userId)].filter((n) => Number.isFinite(n));
+        setActiveUsers((curr) => {
+          const next = new Set(curr);
+          joinedIds.forEach((id) => next.add(id));
+          next.add(userId);
+          return next;
+        });
       })
-      .on('presence', { event: 'leave' }, () => {
-        const presenceByUserId = channel.presenceState() as unknown as ActiveUserPresenceState;
-        setActiveUsers(readActiveUserIds(presenceByUserId, userId));
+      .on('presence', { event: 'leave' }, ({ key, leftPresences }: { key: string; leftPresences: ActiveUsersData[] }) => {
+        const leftIds = [Number(key), ...leftPresences.map((presence) => presence.userId)].filter((n) => Number.isFinite(n));
+        setActiveUsers((curr) => {
+          const next = new Set(curr);
+          leftIds.forEach((id) => {
+            if (id !== userId) {
+              next.delete(id);
+            }
+          });
+          next.add(userId);
+          return next;
+        });
       })
       .subscribe((status) => {
         if (status === 'SUBSCRIBED') {
