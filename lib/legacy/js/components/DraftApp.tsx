@@ -19,14 +19,32 @@ import DraftStatus from './DraftStatus';
 import { GolfDraftPanel } from './GolfDraftPanel';
 import { PickListEditor } from './PickListEditor';
 
+const CHAT_NOTIFICATION_SOUNDS_ENABLED_KEY = 'gd:chatNotificationSoundsEnabled';
 let myTurnSound: HTMLAudioElement | undefined = undefined;
 let pickMadeSound: HTMLAudioElement | undefined = undefined;
 try {
   myTurnSound = new Audio(Assets.MY_TURN_SOUND);
   pickMadeSound = new Audio(Assets.PICK_MADE_SOUND);
+  myTurnSound.preload = 'auto';
+  pickMadeSound.preload = 'auto';
 } catch (e) {
   console.warn('Could not load my turn sounds');
 }
+
+const playSound = (audio: HTMLAudioElement | undefined) => {
+  if (!audio) {
+    return;
+  }
+
+  try {
+    audio.currentTime = 0;
+    void audio.play().catch(() => {
+      // noop
+    });
+  } catch (e) {
+    // noop
+  }
+};
 
 const DraftApp: React.FC = () => {
   const { data: draftSettings } = useDraftSettings();
@@ -44,9 +62,10 @@ const DraftApp: React.FC = () => {
     currentUser && currentPick && currentPick !== 'none'
       ? currentPick.userId === currentUser.id || pickingForUsers.has(currentPick.userId)
       : undefined;
+  const chatNotificationSoundsEnabled = useChatNotificationSoundsEnabledPreference();
 
   useMyTurnSoundFx(isMyDraftPick);
-  usePickMadeSoundFx(draftPicks);
+  usePickMadeSoundFx(draftPicks, chatNotificationSoundsEnabled);
 
   if (!draftSettings || !draftPicks || !currentPick || !currentUser) {
     return <Loading />;
@@ -128,27 +147,19 @@ const useMyTurnSoundFx = (isMyDraftPick: boolean | undefined) => {
   const lastIsMyDraftPick = usePreviousValue(isMyDraftPick);
   useEffect(() => {
     if (isMyDraftPick !== undefined && lastIsMyDraftPick !== undefined && isMyDraftPick && !lastIsMyDraftPick) {
-      try {
-        myTurnSound?.play();
-      } catch (e) {
-        // noop
-      }
+      playSound(myTurnSound);
     }
   }, [isMyDraftPick, lastIsMyDraftPick]);
 };
 
-const usePickMadeSoundFx = (draftPicks: DraftPick[] | undefined) => {
+const usePickMadeSoundFx = (draftPicks: DraftPick[] | undefined, enabled: boolean) => {
   const draftPickCount = draftPicks?.filter(isCompletedDraftPick).length;
   const lastDraftPickCount = usePreviousValue(draftPickCount);
   useEffect(() => {
-    if (draftPickCount !== undefined && lastDraftPickCount !== undefined && draftPickCount > lastDraftPickCount) {
-      try {
-        pickMadeSound?.play();
-      } catch (e) {
-        // noop
-      }
+    if (enabled && draftPickCount !== undefined && lastDraftPickCount !== undefined && draftPickCount > lastDraftPickCount) {
+      playSound(pickMadeSound);
     }
-  }, [draftPickCount, lastDraftPickCount]);
+  }, [draftPickCount, enabled, lastDraftPickCount]);
 };
 
 const usePreviousValue = <T,>(v: T): T | undefined => {
@@ -157,6 +168,30 @@ const usePreviousValue = <T,>(v: T): T | undefined => {
     ref.current = v;
   });
   return ref.current;
+};
+
+const useChatNotificationSoundsEnabledPreference = (): boolean => {
+  const [enabled, setEnabled] = useState(true);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    const readPreference = () => {
+      const storedValue = window.localStorage.getItem(CHAT_NOTIFICATION_SOUNDS_ENABLED_KEY);
+      setEnabled(storedValue !== 'false');
+    };
+
+    readPreference();
+    window.addEventListener('storage', readPreference);
+
+    return () => {
+      window.removeEventListener('storage', readPreference);
+    };
+  }, []);
+
+  return enabled;
 };
 
 const PostDraft: React.FC = () => {
