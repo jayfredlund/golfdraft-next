@@ -188,7 +188,7 @@ const ChatNotificationSoundToggle = ({
   onToggle: (enabled: boolean) => void;
 }): React.ReactElement => {
   return (
-    <div className="checkbox" style={{ marginTop: '10px' }}>
+    <div className="checkbox" style={{ paddingLeft: '20px' }}>
       <label>
         <input type="checkbox" checked={!enabled} onChange={(ev) => onToggle(!ev.target.checked)} /> Turn off chat
         notification sounds
