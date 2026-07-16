@@ -10,7 +10,9 @@ const WARNING_SOUND_INTERVAL_SECONDS = 10;
 
 let pickWarningSound: HTMLAudioElement | undefined = undefined;
 try {
-  pickWarningSound = new Audio(Assets.PICK_WARNING_SOUND);
+  if (typeof window !== 'undefined' && typeof Audio !== 'undefined') {
+    pickWarningSound = new Audio(Assets.PICK_WARNING_SOUND);
+  }
 } catch (e) {
   console.warn(`Could not load PICK_WARNING_SOUND: ${Assets.PICK_WARNING_SOUND}`);
 }
@@ -41,7 +43,7 @@ const DraftClock: React.FC<{
     };
   }, [prevPickEpochMillis]);
 
-  const isInFinalCountdownThreshold = totalSeconds > FINAL_COUNTDOWN_THRESHOLD;
+  const isInFinalCountdownThreshold = (totalMillis ?? 0) > FINAL_COUNTDOWN_THRESHOLD;
   useEffect(() => {
     if (!isMyPick || !isInFinalCountdownThreshold) {
       return;
